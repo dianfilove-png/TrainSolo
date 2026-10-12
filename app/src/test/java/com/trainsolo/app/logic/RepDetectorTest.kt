@@ -73,4 +73,25 @@ class RepDetectorTest {
         val s = AppState(workouts = listOf(plain, seen))
         assertEquals(s, Json.decode(Json.encode(s)))
     }
+
+    @Test
+    fun lightShadow() {
+        val l = LightShadow()
+        l.calibrate(200f)
+        assertEquals(false, l.isDark(150f))
+        assertEquals(true, l.isDark(60f))
+        assertEquals(true, l.isDark(120f)) // гистерезис: ещё в тени
+        assertEquals(false, l.isDark(160f))
+        l.calibrate(3f)
+        assertEquals(false, l.isDark(0f)) // в темноте не работает
+    }
+
+    @Test
+    fun proximityQuirks() {
+        assertEquals(false, proximityNear(5f, 5f))
+        assertEquals(false, proximityNear(5f, 5.0003f))
+        assertEquals(true, proximityNear(0f, 5f))
+        assertEquals(false, proximityNear(1f, 1f))
+        assertEquals(true, proximityNear(3f, 8f))
+    }
 }

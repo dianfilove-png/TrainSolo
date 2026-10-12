@@ -101,3 +101,34 @@ fun formGrade(clean: Int, attempts: Int): String {
         else -> "E"
     }
 }
+
+/**
+ * Тень от груди над датчиком освещённости. Работает дальше датчика приближения (10–20 см)
+ * и выручает там, где тот «виртуальный» или не отдаётся приложениям.
+ * [calibrate] получает освещённость в верхней точке отжимания.
+ */
+class LightShadow(private val darkRatio: Float = 0.45f, private val releaseRatio: Float = 0.7f) {
+    private var baseline = 0f
+    private var dark = false
+
+    /** В темноте тень не разглядеть — тогда датчик света не используется. */
+    val usable get() = baseline >= MIN_LUX
+
+    fun calibrate(lux: Float) {
+        baseline = lux
+        dark = false
+    }
+
+    fun isDark(lux: Float): Boolean {
+        if (!usable) return false
+        dark = if (dark) lux < baseline * releaseRatio else lux < baseline * darkRatio
+        return dark
+    }
+
+    companion object {
+        const val MIN_LUX = 8f
+    }
+}
+
+/** Бинарный датчик приближения: «далеко» обычно равно maximumRange, «близко» — 0. */
+fun proximityNear(value: Float, maxRange: Float): Boolean = value < minOf(maxRange, 5f)

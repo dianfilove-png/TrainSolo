@@ -47,10 +47,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.trainsolo.app.logic.AngleReps
+import com.trainsolo.app.logic.LightShadow
 import com.trainsolo.app.logic.ProximityReps
 import com.trainsolo.app.logic.RepEvent
 import com.trainsolo.app.logic.angleDeg
 import com.trainsolo.app.logic.formGrade
+import com.trainsolo.app.logic.proximityNear
 import com.trainsolo.app.model.Exercise
 import com.trainsolo.app.model.SensorMode
 import kotlinx.coroutines.delay
@@ -65,8 +67,9 @@ private const val IDLE_END_MS = 6000L
 
 private fun briefing(mode: SensorMode) = when (mode) {
     SensorMode.PROXIMITY ->
-        "Положи телефон на пол экраном вверх — верхним краем под грудь. Повтор засчитывается, когда грудь почти касается телефона. " +
-            "Если датчик не реагирует — касайся экрана носом или подбородком."
+        "Положи телефон на пол экраном вверх, верхним краем точно под грудь. Повтор засчитывается, когда грудь опускается к телефону: " +
+            "его замечает датчик приближения или тень над датчиком света, так что лучше заниматься при включённом свете. " +
+            "Если всё равно не считает — касайся экрана носом или подбородком."
     SensorMode.THIGH_ANGLE ->
         "Положи телефон в передний карман штанов и встань ровно. Система измеряет угол бедра: засчитываются только приседы до параллели."
     SensorMode.TORSO_ANGLE ->
@@ -121,7 +124,8 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
             else -> sensors?.getDefaultSensor(Sensor.TYPE_GRAVITY) ?: sensors?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         }
     }
-    // Без датчика приближения повтор засчитывается касанием экрана.
+    val lightSensor = remember { if (mode == SensorMode.PROXIMITY) sensors?.getDefaultSensor(Sensor.TYPE_LIGHT) else null }
+    // Отжимания всегда можно засчитывать ещё и касанием экрана (носом или подбородком).
     val touchMode = mode == SensorMode.PROXIMITY
 
     var stage by remember { mutableStateOf(Stage.BRIEF) }
@@ -136,6 +140,13 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
     var hint by remember { mutableStateOf("") }
     val gravity = remember { FloatArray(3) }
     val base = remember { FloatArray(3) }
+    // Отжимания: грудь замечает датчик приближения ИЛИ тень над датчиком света.
+    var proxNear by remember { mutableStateOf(false) }
+    var lightDark by remember { mutableStateOf(false) }
+    var lux by remember { mutableStateOf(-1f) }
+    var luxSum by remember { mutableStateOf(0f) }
+    var luxCount by remember { mutableIntStateOf(0) }
+    val lightShadow = remember { LightShadow() }
 
     fun now() = System.currentTimeMillis()
 
@@ -191,11 +202,19 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
 
     // Подписка на датчик живёт, пока идёт калибровка или подход.
     DisposableEffect(stage) {
-        val listening = stage == Stage.CALIBRATE || stage == Stage.ACTIVE
+        // Для отжиманий датчики слушаем уже на брифинге — чтобы проверить их ладонью.
+        val listening = stage == Stage.CALIBRATE || stage == Stage.ACTIVE || (stage == Stage.BRIEF && mode == SensorMode.PROXIMITY)
         val listener = object : SensorEventListener {
             override fun onSensorChanged(e: SensorEvent) {
                 if (mode == SensorMode.PROXIMITY) {
-                    if (stage == Stage.ACTIVE) handle(proximity.onSample(e.values[0] < minOf(e.sensor.maximumRange, 5f), now()))
+                    if (e.sensor.type == Sensor.TYPE_LIGHT) {
+                        lux = e.values[0]
+                        if (stage == Stage.CALIBRATE) { luxSum += lux; luxCount++ }
+                        if (stage == Stage.ACTIVE) lightDark = lightShadow.isDark(lux)
+                    } else {
+                        proxNear = proximityNear(e.values[0], e.sensor.maximumRange)
+                    }
+                    if (stage == Stage.ACTIVE) handle(proximity.onSample(proxNear || lightDark, now()))
                     return
                 }
                 val k = if (e.sensor.type == Sensor.TYPE_GRAVITY) 1f else 0.15f
@@ -208,7 +227,9 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
 
             override fun onAccuracyChanged(s: Sensor?, accuracy: Int) = Unit
         }
-        if (listening && sensor != null) sensors?.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
+        if (listening) {
+            listOfNotNull(sensor, lightSensor).forEach { sensors?.registerListener(listener, it, SensorManager.SENSOR_DELAY_GAME) }
+        }
         onDispose { sensors?.unregisterListener(listener) }
     }
 
@@ -216,8 +237,12 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
         when (stage) {
             Stage.CALIBRATE -> {
                 voice.say("Подход ${setIndex + 1}. ${calibrateHint(mode)}. Калибровка")
+                luxSum = 0f
+                luxCount = 0
                 delay(CALIBRATE_SEC * 1000L)
                 gravity.copyInto(base)
+                lightShadow.calibrate(if (luxCount > 0) luxSum / luxCount else lux)
+                lightDark = false
                 reps = 0
                 misses = 0
                 depth = 0f
@@ -262,12 +287,19 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
             when (stage) {
                 Stage.BRIEF -> {
                     Text(briefing(mode), color = C.textDim, fontSize = 16.sp, lineHeight = 23.sp, textAlign = TextAlign.Center)
-                    if (sensor == null) {
+                    if (mode == SensorMode.PROXIMITY) {
+                        val seen = proxNear || (lux >= 0 && lightShadow.usable && lightDark)
                         Text(
-                            if (touchMode) "Датчик приближения не найден — засчитывай повторы касанием экрана."
-                            else "На телефоне нет датчика положения — режим недоступен.",
-                            color = C.recovering, fontSize = 14.sp, textAlign = TextAlign.Center,
+                            when {
+                                sensor == null && lightSensor == null -> "Датчики не найдены — засчитывай повторы касанием экрана."
+                                proxNear -> "✋ Вижу ладонь! Датчик работает"
+                                else -> "Проверка: накрой ладонью верх экрана — Система должна тебя увидеть."
+                            },
+                            color = if (seen) C.fresh else C.recovering, fontSize = 15.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
                         )
+                        SensorReadout(sensor != null, proxNear, lux)
+                    } else if (sensor == null) {
+                        Text("На телефоне нет датчика положения — режим недоступен.", color = C.recovering, fontSize = 14.sp, textAlign = TextAlign.Center)
                     }
                     Text("$sets × $targetReps · бонус Системы +5 XP за подход", color = C.xp, fontWeight = FontWeight.Bold)
                     Box(Modifier.weight(1f))
@@ -306,6 +338,7 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
                             Text(hint.ifEmpty { if (touchMode) "или касание экрана" else " " }, color = if (hint.isEmpty()) C.textMuted else C.danger, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
                     }
+                    if (mode == SensorMode.PROXIMITY) SensorReadout(sensor != null, proxNear || lightDark, lux)
                     Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         Stat("Не засчитано", "$misses")
                         Stat("Чистота", if (totalAttempts == 0) "—" else "${totalClean * 100 / totalAttempts}%")
@@ -338,6 +371,17 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
             }
         }
     }
+}
+
+/** Живые показания датчиков — видно, «видит» ли телефон грудь. */
+@Composable
+private fun SensorReadout(hasProximity: Boolean, near: Boolean, lux: Float) {
+    val parts = buildList {
+        add(if (near) "● близко" else "○ далеко")
+        if (!hasProximity) add("датчика приближения нет")
+        if (lux >= 0) add("свет ${lux.toInt()} лк")
+    }
+    Text(parts.joinToString(" · "), color = if (near) C.fresh else C.textMuted, fontSize = 13.sp)
 }
 
 @Composable
