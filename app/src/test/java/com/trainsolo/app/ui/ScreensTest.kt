@@ -13,11 +13,13 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.trainsolo.app.model.FoodEntry
 import com.trainsolo.app.model.Meal
 import com.trainsolo.app.store.AppStore
 import org.junit.Rule
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -36,7 +38,8 @@ class ScreensTest {
         rule.waitForIdle()
         val dir = File("build/screens").apply { mkdirs() }
         // Модальные окна живут в отдельных окнах — снимаем их корень, если он открыт.
-        val root = rule.activity.window.decorView.rootView
+        val root = org.robolectric.shadows.ShadowDialog.getLatestDialog()?.takeIf { it.isShowing }?.window?.decorView
+            ?: rule.activity.window.decorView.rootView
         val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
         root.draw(Canvas(bitmap))
         File(dir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -90,5 +93,20 @@ class ScreensTest {
         rule.onNodeWithText("Женщина").performClick()
         rule.onNode(hasText("Герой") and hasClickAction()).performClick()
         shot("8-hero-female")
+
+        // Глаз Системы: в Robolectric нет датчика приближения — повтор засчитывается касанием.
+        rule.onNode(hasText("Тренировка") and hasClickAction()).performClick()
+        rule.onNodeWithText("Добавить упражнение", substring = true).performClick()
+        rule.onAllNodes(hasSetTextAction())[0].performTextInput("с колен")
+        rule.onNodeWithText("Отжимания с колен").performClick()
+        rule.onNodeWithText("Выполнить под надзором", substring = true).performScrollTo().performClick()
+        shot("9-system-brief")
+        rule.onNodeWithText("Начать задание", substring = true).performClick()
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("или касание экрана").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("или касание экрана").performClick()
+        rule.onNodeWithText("1").assertIsDisplayed()
+        shot("10-system-active")
+        rule.onNodeWithText("Стоп", substring = true).performClick()
+        assertTrue(store.state.workouts.any { it.exerciseId == "knee_push_ups" && it.verifiedReps == 1 })
     }
 }

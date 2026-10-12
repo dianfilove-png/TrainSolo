@@ -2,6 +2,7 @@ package com.trainsolo.app.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -68,7 +69,13 @@ fun MuscleTags(ex: Exercise) {
 /** Выбор упражнения и ввод подходов. Если задан [exerciseId] — сразу открывается форма. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ExerciseSheet(exerciseId: String?, planned: Planned?, onDismiss: () -> Unit, onSave: (String, ExerciseValues) -> Unit) {
+fun ExerciseSheet(
+    exerciseId: String?,
+    planned: Planned?,
+    onDismiss: () -> Unit,
+    onSupervise: (String, ExerciseValues) -> Unit = { _, _ -> },
+    onSave: (String, ExerciseValues) -> Unit,
+) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var picked by remember { mutableStateOf(exerciseId?.let(::exercise)) }
     var values by remember { mutableStateOf(picked?.let { defaultValues(it, planned) }) }
@@ -79,7 +86,7 @@ fun ExerciseSheet(exerciseId: String?, planned: Planned?, onDismiss: () -> Unit,
             val v = values
             Text(ex?.name ?: "Выбери упражнение", color = C.text, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
             if (ex != null && v != null) {
-                LogForm(ex, v, { values = it }, onBack = if (exerciseId == null) ({ picked = null }) else null, onSave = { onSave(ex.id, v) })
+                LogForm(ex, v, { values = it }, onBack = if (exerciseId == null) ({ picked = null }) else null, onSave = { onSave(ex.id, v) }, onSupervise = { onSupervise(ex.id, v) })
             } else {
                 Picker { picked = it; values = defaultValues(it) }
             }
@@ -131,7 +138,7 @@ private fun Picker(onPick: (Exercise) -> Unit) {
 }
 
 @Composable
-private fun LogForm(ex: Exercise, v: ExerciseValues, onChange: (ExerciseValues) -> Unit, onBack: (() -> Unit)?, onSave: () -> Unit) {
+private fun LogForm(ex: Exercise, v: ExerciseValues, onChange: (ExerciseValues) -> Unit, onBack: (() -> Unit)?, onSave: () -> Unit, onSupervise: () -> Unit) {
     val xp = workoutXp(ex.id, v.sets, v.durationMin)
     val valid = if (ex.kind == ExerciseKind.CARDIO) v.durationMin > 0 else v.sets > 0 && v.reps > 0
     Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -160,6 +167,14 @@ private fun LogForm(ex: Exercise, v: ExerciseValues, onChange: (ExerciseValues) 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 16.dp)) {
             if (onBack != null) SecondaryButton("Назад", onBack, Modifier.weight(1f))
             PrimaryButton("Записать", onSave, Modifier.weight(2f), enabled = valid, icon = "✓")
+        }
+        if (ex.sensor != null) {
+            Card(border = C.primary) {
+                Text("[ ГЛАЗ СИСТЕМЫ ]", color = C.primary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 2.sp)
+                Text("Телефон сам посчитает повторы и не засчитает халтуру. +5 XP за каждый подтверждённый подход.", color = C.textDim, fontSize = 14.sp)
+                SecondaryButton("👁 Выполнить под надзором", onSupervise, Modifier.fillMaxWidth(), enabled = valid, color = C.primary)
+            }
+            Box(Modifier.padding(bottom = 8.dp))
         }
     }
 }

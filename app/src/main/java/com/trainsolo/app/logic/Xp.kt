@@ -3,6 +3,7 @@ package com.trainsolo.app.logic
 import com.trainsolo.app.data.exercise
 import com.trainsolo.app.model.AppState
 import com.trainsolo.app.model.ExerciseKind
+import com.trainsolo.app.model.WorkoutEntry
 import java.time.LocalDate
 
 const val XP_PER_SET = 10
@@ -15,8 +16,14 @@ fun workoutXp(exerciseId: String, sets: Int, durationMin: Int): Int =
     if (exercise(exerciseId)?.kind == ExerciseKind.CARDIO) durationMin * XP_PER_CARDIO_MIN
     else maxOf(0, sets) * XP_PER_SET
 
+/** Бонус Системы за подход, подтверждённый датчиками. */
+const val XP_VERIFIED_BONUS = 5
+
+fun entryXp(w: WorkoutEntry): Int =
+    workoutXp(w.exerciseId, w.sets, w.durationMin) + if (w.verifiedReps > 0) w.sets * XP_VERIFIED_BONUS else 0
+
 fun totalXp(state: AppState): Int {
-    var xp = state.workouts.sumOf { workoutXp(it.exerciseId, it.sets, it.durationMin) }
+    var xp = state.workouts.sumOf(::entryXp)
     val foodPerDay = state.foods.groupingBy { it.date }.eachCount()
     xp += foodPerDay.values.sumOf { minOf(it, FOOD_XP_ENTRIES_PER_DAY) * XP_PER_FOOD }
     xp += state.questClaims.sumOf { it.xp }
@@ -63,4 +70,4 @@ fun levelInfo(xp: Int): LevelInfo {
 
 /** XP за один день — для сводки на экране тренировки. */
 fun dayWorkoutXp(state: AppState, date: LocalDate): Int =
-    state.workouts.filter { it.date == date }.sumOf { workoutXp(it.exerciseId, it.sets, it.durationMin) }
+    state.workouts.filter { it.date == date }.sumOf(::entryXp)

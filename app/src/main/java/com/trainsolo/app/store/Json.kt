@@ -29,6 +29,7 @@ object Json {
                 put("id", w.id); put("date", w.date.toString()); put("exerciseId", w.exerciseId)
                 put("sets", w.sets); put("reps", w.reps); put("weight", w.weight)
                 put("durationMin", w.durationMin); put("distanceKm", w.distanceKm); put("createdAt", w.createdAt)
+                put("verifiedReps", w.verifiedReps)
             }
         }))
         put("foods", JSONArray(s.foods.map { f ->
@@ -66,7 +67,7 @@ object Json {
                 WorkoutEntry(
                     w.getString("id"), LocalDate.parse(w.getString("date")), w.getString("exerciseId"),
                     w.optInt("sets"), w.optInt("reps"), w.optDouble("weight", 0.0),
-                    w.optInt("durationMin"), w.optDouble("distanceKm", 0.0), w.optLong("createdAt"),
+                    w.optInt("durationMin"), w.optDouble("distanceKm", 0.0), w.optLong("createdAt"), w.optInt("verifiedReps"),
                 )
             },
             foods = o.optJSONArray("foods").objects().map { f ->

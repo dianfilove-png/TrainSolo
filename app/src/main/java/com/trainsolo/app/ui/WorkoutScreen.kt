@@ -34,6 +34,9 @@ import com.trainsolo.app.data.exercise
 import com.trainsolo.app.data.program
 import com.trainsolo.app.logic.formatAmount
 import com.trainsolo.app.logic.grouped
+import com.trainsolo.app.logic.XP_PER_SET
+import com.trainsolo.app.logic.XP_VERIFIED_BONUS
+import com.trainsolo.app.logic.entryXp
 import com.trainsolo.app.logic.workoutXp
 import com.trainsolo.app.model.ExerciseKind
 import com.trainsolo.app.model.Planned
@@ -52,6 +55,7 @@ fun WorkoutScreen(store: AppStore, onOpenProgram: (String) -> Unit, onPickProgra
     var sheet by remember { mutableStateOf<SheetRequest?>(null) }
     var nonce by remember { mutableIntStateOf(0) }
     var toDelete by remember { mutableStateOf<WorkoutEntry?>(null) }
+    var supervised by remember { mutableStateOf<Pair<String, ExerciseValues>?>(null) }
 
     val entries = state.workouts.filter { it.date == date }.sortedBy { it.createdAt }
     val done = entries.map { it.exerciseId }.toSet()
@@ -63,7 +67,7 @@ fun WorkoutScreen(store: AppStore, onOpenProgram: (String) -> Unit, onPickProgra
         val ex = exercise(e.exerciseId) ?: continue
         if (ex.kind == ExerciseKind.CARDIO) minutes += e.durationMin else sets += e.sets
         if (ex.kind == ExerciseKind.STRENGTH) tonnage += e.sets * e.reps * e.weight
-        xp += workoutXp(e.exerciseId, e.sets, e.durationMin)
+        xp += entryXp(e)
     }
 
     val active = program(state.activeProgramId)
@@ -160,7 +164,7 @@ fun WorkoutScreen(store: AppStore, onOpenProgram: (String) -> Unit, onPickProgra
                             Text(formatAmount(ex, e.sets, e.reps, e.weight, e.durationMin, e.distanceKm), color = C.primary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                             Text(ex.primary.joinToString { it.title }, color = C.textMuted, fontSize = 12.sp, maxLines = 1)
                         }
-                        Text("+${workoutXp(e.exerciseId, e.sets, e.durationMin)}", color = C.xp, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text((if (e.verifiedReps > 0) "👁 " else "") + "+${entryXp(e)}", color = C.xp, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         IconButton(onClick = { toDelete = e }) { Icon(Icons.Filled.Delete, "Удалить", tint = C.textDim) }
                     }
                 }
@@ -170,11 +174,22 @@ fun WorkoutScreen(store: AppStore, onOpenProgram: (String) -> Unit, onPickProgra
 
     sheet?.let { req ->
         androidx.compose.runtime.key(req.nonce) {
-            ExerciseSheet(req.exerciseId, req.planned, onDismiss = { sheet = null }) { id, v ->
+            ExerciseSheet(req.exerciseId, req.planned, onDismiss = { sheet = null }, onSupervise = { id, v ->
+                sheet = null
+                supervised = id to v
+            }) { id, v ->
                 log(id, v)
                 sheet = null
             }
         }
+    }
+    supervised?.let { (id, v) ->
+        val ex = exercise(id) ?: return@let
+        val shadow = state.workouts.filter { it.exerciseId == id }.maxOfOrNull { it.reps } ?: 0
+        SystemSession(ex, v.sets, v.reps, shadow, onSetDone = { reps ->
+            store.addWorkout(date, id, 1, reps, 0.0, 0, 0.0, verifiedReps = reps)
+            toast("+${XP_PER_SET + XP_VERIFIED_BONUS} XP · Подтверждено Системой 👁")
+        }, onClose = { supervised = null })
     }
     toDelete?.let { e ->
         ConfirmDialog("Удалить упражнение?", exercise(e.exerciseId)?.name ?: "", "Удалить", { store.removeWorkout(e.id) }, { toDelete = null })

@@ -39,8 +39,12 @@ class AppStore(context: Context) {
         prefs.edit().putString(KEY, Json.encode(state)).apply()
     }
 
-    fun addWorkout(date: LocalDate, exerciseId: String, sets: Int, reps: Int, weight: Double, durationMin: Int, distanceKm: Double) =
-        update { it.copy(workouts = it.workouts + WorkoutEntry(newId(), date, exerciseId, sets, reps, weight, durationMin, distanceKm, System.currentTimeMillis())) }
+    fun addWorkout(
+        date: LocalDate, exerciseId: String, sets: Int, reps: Int, weight: Double, durationMin: Int, distanceKm: Double,
+        verifiedReps: Int = 0,
+    ) = update {
+        it.copy(workouts = it.workouts + WorkoutEntry(newId(), date, exerciseId, sets, reps, weight, durationMin, distanceKm, System.currentTimeMillis(), verifiedReps))
+    }
 
     fun removeWorkout(id: String) = update { s -> s.copy(workouts = s.workouts.filterNot { it.id == id }) }
 

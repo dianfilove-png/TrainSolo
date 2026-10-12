@@ -18,6 +18,7 @@ import com.trainsolo.app.model.Muscle.QUADS
 import com.trainsolo.app.model.Muscle.SHOULDERS
 import com.trainsolo.app.model.Muscle.TRAPS
 import com.trainsolo.app.model.Muscle.TRICEPS
+import com.trainsolo.app.model.SensorMode
 
 private val ALL: List<Exercise> = listOf(
     // Грудь
@@ -118,8 +119,15 @@ private val HOME_FRIENDLY = setOf(
 )
 private val HOME_SECTION_START = ALL.indexOfFirst { it.id == "wide_push_ups" }
 
+private val SENSORS = mapOf(
+    "push_ups" to SensorMode.PROXIMITY, "knee_push_ups" to SensorMode.PROXIMITY,
+    "wide_push_ups" to SensorMode.PROXIMITY, "diamond_push_ups" to SensorMode.PROXIMITY,
+    "bw_squat" to SensorMode.THIGH_ANGLE, "sumo_squat" to SensorMode.THIGH_ANGLE,
+    "sit_ups" to SensorMode.TORSO_ANGLE,
+)
+
 val EXERCISES: List<Exercise> = ALL.mapIndexed { i, e ->
-    if (i >= HOME_SECTION_START || e.id in HOME_FRIENDLY) e.copy(home = true) else e
+    e.copy(home = i >= HOME_SECTION_START || e.id in HOME_FRIENDLY, sensor = SENSORS[e.id])
 }
 
 private val BY_ID = EXERCISES.associateBy { it.id }

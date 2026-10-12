@@ -19,6 +19,16 @@ enum class Muscle(val title: String) {
     CALVES("Икры"),
 }
 
+/** Как «Глаз Системы» засчитывает повторы. */
+enum class SensorMode {
+    /** Датчик приближения: грудь касается телефона на полу. */
+    PROXIMITY,
+    /** Телефон в переднем кармане: угол бедра. */
+    THIGH_ANGLE,
+    /** Телефон прижат к груди: угол корпуса. */
+    TORSO_ANGLE,
+}
+
 /** STRENGTH — подходы × повторы × вес; BODYWEIGHT — подходы × повторы; CARDIO — минуты (+ км). */
 enum class ExerciseKind { STRENGTH, BODYWEIGHT, CARDIO }
 
@@ -32,6 +42,8 @@ data class Exercise(
     val seconds: Boolean = false,
     /** Можно выполнить дома без тренажёров. */
     val home: Boolean = false,
+    /** Можно выполнять «под надзором Системы». */
+    val sensor: SensorMode? = null,
 )
 
 data class WorkoutEntry(
@@ -44,6 +56,8 @@ data class WorkoutEntry(
     val durationMin: Int,
     val distanceKm: Double,
     val createdAt: Long,
+    /** Повторы, подтверждённые датчиками телефона. */
+    val verifiedReps: Int = 0,
 )
 
 enum class Meal(val title: String, val emoji: String) {
