@@ -90,19 +90,21 @@ fun ExerciseSheet(exerciseId: String?, planned: Planned?, onDismiss: () -> Unit,
 @Composable
 private fun Picker(onPick: (Exercise) -> Unit) {
     var query by remember { mutableStateOf("") }
-    // null — все, "cardio" — только кардио, иначе имя мышцы.
-    var filter by remember { mutableStateOf<String?>(null) }
+    // null — все, "home" — для дома, "cardio" — только кардио, иначе имя мышцы.
+    var filter by remember { mutableStateOf<String?>("home") }
     val f = filter
     val list = EXERCISES.filter { e ->
         (query.isBlank() || e.name.contains(query.trim(), ignoreCase = true)) &&
             when (f) {
                 null -> true
+                "home" -> e.home
                 "cardio" -> e.kind == ExerciseKind.CARDIO
                 else -> Muscle.valueOf(f).let { m -> m in e.primary || m in e.secondary }
             }
     }
     Field("Поиск", query, { query = it }, placeholder = "Название упражнения")
     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        item { Chip("🏠 Дома", filter == "home", { filter = "home" }) }
         item { Chip("Все", filter == null, { filter = null }) }
         item { Chip("Кардио", filter == "cardio", { filter = "cardio" }) }
         items(Muscle.entries) { m -> Chip(m.title, filter == m.name, { filter = m.name }) }

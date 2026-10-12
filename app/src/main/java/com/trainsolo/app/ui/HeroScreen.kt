@@ -46,6 +46,7 @@ import com.trainsolo.app.logic.questStatuses
 import com.trainsolo.app.logic.sumFoods
 import com.trainsolo.app.model.Muscle
 import com.trainsolo.app.model.QuestClaim
+import com.trainsolo.app.model.Sex
 import com.trainsolo.app.store.AppStore
 import kotlin.math.roundToInt
 
@@ -136,7 +137,7 @@ fun HeroScreen(
             SectionTitle("Состояние мышц")
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val figure = ((maxWidth - 8.dp) / 2).coerceAtMost(170.dp)
-                BodyMap(muscles, selected, onSelect = { selected = if (selected == it) null else it }, figureWidth = figure, aura = rankColor)
+                BodyMap(muscles, selected, onSelect = { selected = if (selected == it) null else it }, figureWidth = figure, aura = rankColor, female = state.profile.sex == Sex.FEMALE)
             }
             StatusLegend(muscles)
             val sel = selected

@@ -66,3 +66,31 @@ val BACK_SHAPES = listOf(
     MuscleShape(HAMSTRINGS, "M69,246 C68,260 70,272 73,282 C77,288 84,290 89,288 C94,284 96,274 97,262 C98,256 98,250 97,246 C90,250 79,250 69,246 Z"),
     MuscleShape(CALVES, "M73,300 C69,314 70,330 75,344 C79,350 85,350 89,344 C93,330 94,314 91,300 C88,292 77,292 73,300 Z"),
 )
+
+/**
+ * Женская фигура получается деформацией мужской: уже плечи и талия, шире бёдра.
+ * Каждая точка смещается к центральной оси (x = 100) или от неё в зависимости от высоты.
+ */
+private fun femaleFactor(x: Float, y: Float): Float {
+    if (x < 62f && y < 232f) return 0.92f // руки едут вместе с плечами
+    fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t.coerceIn(0f, 1f)
+    return when {
+        y < 115f -> 0.92f
+        y < 160f -> lerp(0.92f, 0.84f, (y - 115f) / 45f)
+        y < 205f -> lerp(0.84f, 1.06f, (y - 160f) / 45f)
+        y < 255f -> 1.06f
+        else -> lerp(1.06f, 0.98f, (y - 255f) / 60f)
+    }
+}
+
+private val POINT = Regex("""(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)""")
+
+fun feminize(d: String): String = POINT.replace(d) { m ->
+    val x = m.groupValues[1].toFloat()
+    val y = m.groupValues[2].toFloat()
+    "${100f - (100f - x) * femaleFactor(x, y)},$y"
+}
+
+/** Волосы до плеч — рисуются за головой. */
+const val HAIR_BACK =
+    "M100,2 C88,2 80,10 79,24 C78,38 79,52 77,64 C82,68 90,66 94,60 C92,50 90,40 91,30 L100,30 Z"

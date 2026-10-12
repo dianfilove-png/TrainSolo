@@ -4,7 +4,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -60,6 +62,7 @@ class ScreensTest {
         shot("2-workout")
 
         rule.onNodeWithText("Добавить упражнение", substring = true).performClick()
+        rule.onNodeWithText("Все").performClick()
         rule.onAllNodes(hasSetTextAction())[0].performTextInput("ногами")
         rule.onNodeWithText("Жим ногами").performClick()
         rule.onNodeWithText("Награда: +30 XP", substring = true).assertIsDisplayed()
@@ -83,5 +86,9 @@ class ScreensTest {
 
         rule.onNodeWithText("Профиль").performClick()
         shot("7-profile")
+
+        rule.onNodeWithText("Женщина").performClick()
+        rule.onNode(hasText("Герой") and hasClickAction()).performClick()
+        shot("8-hero-female")
     }
 }

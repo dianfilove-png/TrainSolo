@@ -30,6 +30,8 @@ data class Exercise(
     val secondary: List<Muscle>,
     /** Для статических упражнений (планка) повторы — это секунды. */
     val seconds: Boolean = false,
+    /** Можно выполнить дома без тренажёров. */
+    val home: Boolean = false,
 )
 
 data class WorkoutEntry(
@@ -125,4 +127,6 @@ data class Program(
     val daysPerWeek: String,
     val description: String,
     val days: List<ProgramDay>,
+    /** Программа для дома — без зала и штанги. */
+    val home: Boolean = false,
 )

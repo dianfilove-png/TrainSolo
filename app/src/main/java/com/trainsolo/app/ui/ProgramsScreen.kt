@@ -21,6 +21,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,6 +56,7 @@ private fun ProgramBadges(p: Program, active: Boolean) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Badge(p.level.title, p.level.color())
         Badge(p.daysPerWeek, C.textDim)
+        if (p.home) Badge("🏠 Дома", C.fresh)
         if (active) Badge("Активна", C.primary)
     }
 }
@@ -63,7 +68,12 @@ fun ProgramsScreen(store: AppStore, onOpen: (String) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         ScreenTitle("Программы", "Выбери путь развития своего героя")
-        PROGRAMS.forEach { p ->
+        var home by rememberSaveable { mutableStateOf(true) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip("🏠 Дома", home, { home = true })
+            Chip("🏋️ Зал", !home, { home = false })
+        }
+        PROGRAMS.filter { it.home == home }.forEach { p ->
             val active = store.state.activeProgramId == p.id
             Column(
                 Modifier.fillMaxWidth().background(C.surface, RoundedCornerShape(16.dp))

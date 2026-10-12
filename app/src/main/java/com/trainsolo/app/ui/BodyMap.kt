@@ -49,13 +49,21 @@ private fun buildShapes(muscle: Muscle?, d: String): List<Shape> {
     }
 }
 
-private val SILHOUETTE_SHAPES = buildShapes(null, SILHOUETTE)
-private val FRONT = FRONT_SHAPES.flatMap { buildShapes(it.muscle, it.d) }
-private val BACK = BACK_SHAPES.flatMap { buildShapes(it.muscle, it.d) }
+/** Набор контуров для одного пола. */
+private class Body(female: Boolean) {
+    private val f: (String) -> String = if (female) ::feminize else { d -> d }
+    val silhouette = buildShapes(null, f(SILHOUETTE))
+    val front = FRONT_SHAPES.flatMap { buildShapes(it.muscle, f(it.d)) }
+    val back = BACK_SHAPES.flatMap { buildShapes(it.muscle, f(it.d)) }
+    val hair = if (female) buildShapes(null, HAIR_BACK) else emptyList()
+}
+
+private val MALE by lazy { Body(false) }
+private val FEMALE by lazy { Body(true) }
 
 @Composable
 private fun Figure(
-    shapes: List<Shape>,
+    body: Body,
     front: Boolean,
     muscles: Map<Muscle, MuscleState>,
     selected: Muscle?,
@@ -63,6 +71,7 @@ private fun Figure(
     width: Dp,
     aura: Color,
 ) {
+    val shapes = if (front) body.front else body.back
     Canvas(
         Modifier
             .size(width, width * 2)
@@ -84,11 +93,16 @@ private fun Figure(
             drawOval(Color.Black.copy(alpha = 0.5f), Offset(58f, 388f), Size(84f, 10f))
 
             // Сначала контур с толстой обводкой, затем заливка поверх — так не видно шва по центру.
-            SILHOUETTE_SHAPES.forEach { drawPath(it.path, C.bodyStroke, style = Stroke(2.4f)) }
-            SILHOUETTE_SHAPES.forEach { drawPath(it.path, C.body) }
+            body.hair.forEach { drawPath(it.path, HAIR) }
+            body.silhouette.forEach { drawPath(it.path, C.bodyStroke, style = Stroke(2.4f)) }
+            body.silhouette.forEach { drawPath(it.path, C.body) }
 
             drawOval(C.body, Offset(83f, 4f), Size(34f, 42f))
             drawOval(C.bodyStroke, Offset(83f, 4f), Size(34f, 42f), style = Stroke(1.2f))
+            if (body.hair.isNotEmpty()) {
+                // Сзади волосы закрывают затылок целиком, спереди — только чёлку.
+                if (front) drawPath(FRINGE, HAIR) else drawOval(HAIR, Offset(82f, 2f), Size(36f, 40f))
+            }
             if (front) {
                 drawOval(aura, Offset(89.6f, 24.4f), Size(6.8f, 3.2f))
                 drawOval(aura, Offset(103.6f, 24.4f), Size(6.8f, 3.2f))
@@ -105,12 +119,25 @@ private fun Figure(
     }
 }
 
+private val HAIR = Color(0xFF3A2A22)
+private val FRINGE = PathParser.createPathFromPathData(
+    "M83,22 C82,10 90,3 100,3 C110,3 118,10 117,22 C112,16 106,13 100,14 C93,13 87,16 83,22 Z",
+).asComposePath()
+
 @Composable
-fun BodyMap(muscles: Map<Muscle, MuscleState>, selected: Muscle?, onSelect: (Muscle) -> Unit, figureWidth: Dp, aura: Color) {
+fun BodyMap(
+    muscles: Map<Muscle, MuscleState>,
+    selected: Muscle?,
+    onSelect: (Muscle) -> Unit,
+    figureWidth: Dp,
+    aura: Color,
+    female: Boolean = false,
+) {
+    val body = if (female) FEMALE else MALE
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
         listOf(true to "СПЕРЕДИ", false to "СЗАДИ").forEach { (front, caption) ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Figure(if (front) FRONT else BACK, front, muscles, selected, onSelect, figureWidth, aura)
+                Figure(body, front, muscles, selected, onSelect, figureWidth, aura)
                 Text(caption, color = C.textMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
             }
         }
