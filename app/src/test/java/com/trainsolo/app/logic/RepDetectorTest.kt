@@ -74,16 +74,35 @@ class RepDetectorTest {
         assertEquals(s, Json.decode(Json.encode(s)))
     }
 
-    @Test
-    fun lightShadow() {
+    /** Освещённость при отжиманиях: [top] в верхней точке, [bottom] внизу, период 2 с, на выходе — число повторов. */
+    private fun lightReps(top: Float, bottom: Float, reps: Int, noise: Float = 0f): Int {
         val l = LightShadow()
-        l.calibrate(200f)
-        assertEquals(false, l.isDark(150f))
-        assertEquals(true, l.isDark(60f))
-        assertEquals(true, l.isDark(120f)) // гистерезис: ещё в тени
-        assertEquals(false, l.isDark(160f))
-        l.calibrate(3f)
-        assertEquals(false, l.isDark(0f)) // в темноте не работает
+        val p = ProximityReps()
+        var count = 0
+        var t = 0L
+        var k = 0
+        while (t < reps * 2000L + 1000) {
+            val phase = (t % 2000).toDouble() / 2000
+            val base = if (t >= reps * 2000L) top else (top - (top - bottom) * sin(PI * phase)).toFloat()
+            val lux = base + if (k++ % 2 == 0) noise else -noise
+            if (p.onSample(l.isDark(lux, t), t) == RepEvent.REP) count++
+            t += 100
+        }
+        return count
+    }
+
+    @Test
+    fun lightShadowAdapts() {
+        assertEquals(5, lightReps(top = 200f, bottom = 40f, reps = 5))
+        // Тело уже затеняет телефон сверху, внизу темнеет всего на треть.
+        assertEquals(5, lightReps(top = 60f, bottom = 40f, reps = 5))
+        // Тусклая комната.
+        assertEquals(4, lightReps(top = 12f, bottom = 5f, reps = 4))
+    }
+
+    @Test
+    fun lightNoiseIgnored() {
+        assertEquals(0, lightReps(top = 100f, bottom = 100f, reps = 5, noise = 3f))
     }
 
     @Test

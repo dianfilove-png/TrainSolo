@@ -144,8 +144,6 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
     var proxNear by remember { mutableStateOf(false) }
     var lightDark by remember { mutableStateOf(false) }
     var lux by remember { mutableStateOf(-1f) }
-    var luxSum by remember { mutableStateOf(0f) }
-    var luxCount by remember { mutableIntStateOf(0) }
     val lightShadow = remember { LightShadow() }
 
     fun now() = System.currentTimeMillis()
@@ -209,8 +207,7 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
                 if (mode == SensorMode.PROXIMITY) {
                     if (e.sensor.type == Sensor.TYPE_LIGHT) {
                         lux = e.values[0]
-                        if (stage == Stage.CALIBRATE) { luxSum += lux; luxCount++ }
-                        if (stage == Stage.ACTIVE) lightDark = lightShadow.isDark(lux)
+                        if (stage == Stage.ACTIVE) lightDark = lightShadow.isDark(lux, now())
                     } else {
                         proxNear = proximityNear(e.values[0], e.sensor.maximumRange)
                     }
@@ -237,11 +234,9 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
         when (stage) {
             Stage.CALIBRATE -> {
                 voice.say("Подход ${setIndex + 1}. ${calibrateHint(mode)}. Калибровка")
-                luxSum = 0f
-                luxCount = 0
                 delay(CALIBRATE_SEC * 1000L)
                 gravity.copyInto(base)
-                lightShadow.calibrate(if (luxCount > 0) luxSum / luxCount else lux)
+                lightShadow.reset()
                 lightDark = false
                 reps = 0
                 misses = 0
@@ -288,7 +283,7 @@ fun SystemSession(ex: Exercise, sets: Int, targetReps: Int, shadow: Int, onSetDo
                 Stage.BRIEF -> {
                     Text(briefing(mode), color = C.textDim, fontSize = 16.sp, lineHeight = 23.sp, textAlign = TextAlign.Center)
                     if (mode == SensorMode.PROXIMITY) {
-                        val seen = proxNear || (lux >= 0 && lightShadow.usable && lightDark)
+                        val seen = proxNear
                         Text(
                             when {
                                 sensor == null && lightSensor == null -> "Датчики не найдены — засчитывай повторы касанием экрана."

@@ -105,28 +105,38 @@ fun formGrade(clean: Int, attempts: Int): String {
 /**
  * Тень от груди над датчиком освещённости. Работает дальше датчика приближения (10–20 см)
  * и выручает там, где тот «виртуальный» или не отдаётся приложениям.
- * [calibrate] получает освещённость в верхней точке отжимания.
+ *
+ * Пороги подстраиваются сами: берутся максимум и минимум освещённости за последние секунды,
+ * поэтому неважно, насколько светло в комнате и насколько тело затеняет телефон в верхней точке.
  */
-class LightShadow(private val darkRatio: Float = 0.45f, private val releaseRatio: Float = 0.7f) {
-    private var baseline = 0f
+class LightShadow(private val windowMs: Long = 4000, private val darkAt: Float = 0.4f, private val releaseAt: Float = 0.7f) {
+    private val samples = ArrayDeque<Pair<Long, Float>>()
     private var dark = false
 
-    /** В темноте тень не разглядеть — тогда датчик света не используется. */
-    val usable get() = baseline >= MIN_LUX
-
-    fun calibrate(lux: Float) {
-        baseline = lux
+    fun reset() {
+        samples.clear()
         dark = false
     }
 
-    fun isDark(lux: Float): Boolean {
-        if (!usable) return false
-        dark = if (dark) lux < baseline * releaseRatio else lux < baseline * darkRatio
+    fun isDark(lux: Float, timeMs: Long): Boolean {
+        samples.addLast(timeMs to lux)
+        while (samples.size > 2 && timeMs - samples.first().first > windowMs) samples.removeFirst()
+        val hi = samples.maxOf { it.second }
+        val lo = samples.minOf { it.second }
+        val span = hi - lo
+        // Слишком слабое изменение — это шум, а не тень.
+        if (hi < MIN_LUX || span < maxOf(MIN_SPAN_LUX, hi * MIN_SPAN_RATIO)) {
+            if (dark && lux >= hi * 0.9f) dark = false
+            return dark
+        }
+        dark = if (dark) lux < lo + span * releaseAt else lux < lo + span * darkAt
         return dark
     }
 
     companion object {
-        const val MIN_LUX = 8f
+        const val MIN_LUX = 3f
+        const val MIN_SPAN_LUX = 2f
+        const val MIN_SPAN_RATIO = 0.15f
     }
 }
 
